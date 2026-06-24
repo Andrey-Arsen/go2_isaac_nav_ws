@@ -1,0 +1,26 @@
+# ROS 2 / colcon build outputs
+build/
+install/
+log/
+
+# Python cache and local virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Local editor and OS files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Local runtime data
+*.db
+*.bag
+*.bag2
+*.mcap
+maps/

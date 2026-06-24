@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Go2 Isaac Navigation</title>
+  <script src="https://cdn.jsdelivr.net/npm/roslib/build/roslib.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #15171a;
+      --panel: #20242a;
+      --panel-2: #2a3038;
+      --text: #eef2f5;
+      --muted: #a8b0ba;
+      --line: #3a414b;
+      --green: #36c27d;
+      --red: #ef5b5b;
+      --blue: #579dff;
+      --amber: #dba441;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      min-height: 36px;
+      padding: 0 12px;
+    }
+
+    button:hover {
+      border-color: var(--blue);
+    }
+
+    button.primary {
+      background: #235caa;
+      border-color: #3978cf;
+    }
+
+    button.danger {
+      background: #7c2f35;
+      border-color: #a8444b;
+    }
+
+    button.active {
+      background: #2e6f51;
+      border-color: var(--green);
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: 54px 1fr;
+      height: 100vh;
+    }
+
+    .toolbar {
+      align-items: center;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+      padding: 8px 12px;
+    }
+
+    .brand {
+      font-weight: 700;
+      margin-right: 10px;
+      white-space: nowrap;
+    }
+
+    .status {
+      align-items: center;
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+      min-width: 0;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 5px 8px;
+      white-space: nowrap;
+    }
+
+    .pill.on {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    .pill.off {
+      border-color: var(--line);
+      color: var(--muted);
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 0;
+    }
+
+    .side {
+      background: #191d22;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 14px;
+    }
+
+    .section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .section-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .mode-row {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .readout {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      min-height: 120px;
+      overflow: auto;
+      padding: 10px;
+      white-space: pre-wrap;
+    }
+
+    .canvas-wrap {
+      min-height: 0;
+      position: relative;
+    }
+
+    canvas {
+      background: #0f1114;
+      display: block;
+      height: 100%;
+      width: 100%;
+    }
+
+    .toast {
+      background: rgba(20, 23, 27, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      bottom: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      left: 14px;
+      max-width: 460px;
+      padding: 8px 10px;
+      position: absolute;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <div class="brand">Go2 Isaac Navigation</div>
+      <button id="startScan">Start Scan</button>
+      <button id="startSlam">Start SLAM</button>
+      <button id="startNav" class="primary">Start NAV</button>
+      <button id="stopAll" class="danger">Stop All</button>
+      <div class="status">
+        <span id="rosbridgeState" class="pill off">rosbridge</span>
+        <span id="scanState" class="pill off">scan</span>
+        <span id="slamState" class="pill off">slam</span>
+        <span id="navState" class="pill off">nav</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <aside class="side">
+        <section class="section">
+          <div class="section-title">Mode</div>
+          <div class="mode-row">
+            <button id="modePose" class="active">Pose Estimate</button>
+            <button id="modeGoal">Goal</button>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Connection</div>
+          <div id="connectionReadout" class="readout">Connecting...</div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Pointer</div>
+          <div id="pointerReadout" class="readout">x: -
+y: -
+yaw: -</div>
+        </section>
+      </aside>
+
+      <section class="canvas-wrap">
+        <canvas id="mapCanvas"></canvas>
+        <div id="toast" class="toast">Waiting for /map and /web_robot_pose</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("mapCanvas");
+    const ctx = canvas.getContext("2d");
+    const toast = document.getElementById("toast");
+    const connectionReadout = document.getElementById("connectionReadout");
+    const pointerReadout = document.getElementById("pointerReadout");
+    const modePose = document.getElementById("modePose");
+    const modeGoal = document.getElementById("modeGoal");
+
+    let mode = "pose";
+    let ros = null;
+    let latestMap = null;
+    let mapImage = null;
+    let robotPose = null;
+    let dragStart = null;
+    let dragCurrent = null;
+    let view = { scale: 1, offsetX: 0, offsetY: 0 };
+    let reconnectTimer = null;
+
+    function setMode(nextMode) {
+      mode = nextMode;
+      modePose.classList.toggle("active", mode === "pose");
+      modeGoal.classList.toggle("active", mode === "goal");
+    }
+
+    modePose.addEventListener("click", () => setMode("pose"));
+    modeGoal.addEventListener("click", () => setMode("goal"));
+
+    async function postJson(path, body = {}) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text);
+      }
+      return response.json();
+    }
+
+    document.getElementById("startScan").addEventListener("click", async () => {
+      await postJson("/api/start_scan");
+      await refreshStatus();
+    });
+
+    document.getElementById("startSlam").addEventListener("click", async () => {
+      await postJson("/api/start_slam");
+      await refreshStatus();
+    });
+
+    document.getElementById("startNav").addEventListener("click", async () => {
+      await postJson("/api/start_nav");
+      await refreshStatus();
+    });
+
+    document.getElementById("stopAll").addEventListener("click", async () => {
+      await postJson("/api/stop_all");
+      await refreshStatus();
+    });
+
+    async function refreshStatus() {
+      try {
+        const status = await fetch("/api/status").then((res) => res.json());
+        setPill("rosbridgeState", status.rosbridge.running);
+        setPill("scanState", status.scan.running);
+        setPill("slamState", status.slam.running);
+        setPill("navState", status.nav.running);
+        connectionReadout.textContent =
+          `rosbridge: ${status.rosbridge.running ? "running" : "stopped"}\n` +
+          `scan: ${status.scan.running ? "running" : "stopped"}\n` +
+          `slam: ${status.slam.running ? "running" : "stopped"}\n` +
+          `nav: ${status.nav.running ? "running" : "stopped"}\n` +
+          `map frame: ${status.frames.map}\n` +
+          `base frame: ${status.frames.base}\n` +
+          `GO2_MAP: ${status.go2_map || "-"}`;
+      } catch (error) {
+        connectionReadout.textContent = String(error);
+      }
+    }
+
+    function setPill(id, running) {
+      const el = document.getElementById(id);
+      el.classList.toggle("on", running);
+      el.classList.toggle("off", !running);
+    }
+
+    function connectRosbridge() {
+      if (ros) {
+        try {
+          ros.close();
+        } catch (_) {}
+      }
+      const url = `ws://${window.location.hostname}:9090`;
+      ros = new ROSLIB.Ros({ url });
+
+      ros.on("connection", () => {
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        toast.textContent = `Connected to ${url}`;
+      });
+
+      ros.on("error", () => {
+        toast.textContent = `Cannot connect to ${url}`;
+      });
+
+      ros.on("close", () => {
+        toast.textContent = "rosbridge disconnected";
+        scheduleRosReconnect();
+      });
+
+      new ROSLIB.Topic({
+        ros,
+        name: "/map",
+        messageType: "nav_msgs/OccupancyGrid",
+      }).subscribe((message) => {
+        latestMap = message;
+        mapImage = buildMapImage(message);
+        draw();
+      });
+
+      new ROSLIB.Topic({
+        ros,
+        name: "/web_robot_pose",
+        messageType: "geometry_msgs/PoseStamped",
+      }).subscribe((message) => {
+        robotPose = message.pose;
+        draw();
+      });
+    }
+
+    function scheduleRosReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectRosbridge();
+      }, 2000);
+    }
+
+    function buildMapImage(map) {
+      const width = map.info.width;
+      const height = map.info.height;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = width;
+      offscreen.height = height;
+      const offCtx = offscreen.getContext("2d");
+      const image = offCtx.createImageData(width, height);
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const mapIndex = x + y * width;
+          const canvasY = height - 1 - y;
+          const imageIndex = (x + canvasY * width) * 4;
+          const value = map.data[mapIndex];
+          let color = 205;
+          if (value === 0) color = 245;
+          if (value > 50) color = 35;
+          image.data[imageIndex] = color;
+          image.data[imageIndex + 1] = color;
+          image.data[imageIndex + 2] = color;
+          image.data[imageIndex + 3] = 255;
+        }
+      }
+
+      offCtx.putImageData(image, 0, 0);
+      return offscreen;
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      draw();
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+
+    function computeView() {
+      const rect = canvas.getBoundingClientRect();
+      if (!latestMap) {
+        view = { scale: 1, offsetX: 0, offsetY: 0 };
+        return;
+      }
+      const scale = Math.min(
+        rect.width / latestMap.info.width,
+        rect.height / latestMap.info.height
+      );
+      view = {
+        scale,
+        offsetX: (rect.width - latestMap.info.width * scale) * 0.5,
+        offsetY: (rect.height - latestMap.info.height * scale) * 0.5,
+      };
+    }
+
+    function mapToCanvas(x, y) {
+      const info = latestMap.info;
+      const gx = (x - info.origin.position.x) / info.resolution;
+      const gy = (y - info.origin.position.y) / info.resolution;
+      return {
+        x: view.offsetX + gx * view.scale,
+        y: view.offsetY + (info.height - gy) * view.scale,
+      };
+    }
+
+    function canvasToMap(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+      if (!latestMap) return null;
+      const info = latestMap.info;
+      const gx = (px - view.offsetX) / view.scale;
+      const gy = info.height - (py - view.offsetY) / view.scale;
+      return {
+        x: info.origin.position.x + gx * info.resolution,
+        y: info.origin.position.y + gy * info.resolution,
+      };
+    }
+
+    function quaternionYaw(q) {
+      const siny = 2 * (q.w * q.z + q.x * q.y);
+      const cosy = 1 - 2 * (q.y * q.y + q.z * q.z);
+      return Math.atan2(siny, cosy);
+    }
+
+    function draw() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      computeView();
+
+      if (mapImage) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(
+          mapImage,
+          view.offsetX,
+          view.offsetY,
+          latestMap.info.width * view.scale,
+          latestMap.info.height * view.scale
+        );
+      }
+
+      if (robotPose && latestMap) {
+        drawRobot();
+      }
+
+      if (dragStart && dragCurrent) {
+        drawDragArrow(dragStart, dragCurrent, mode === "goal" ? "#579dff" : "#36c27d");
+      }
+    }
+
+    function drawRobot() {
+      const p = mapToCanvas(robotPose.position.x, robotPose.position.y);
+      const yaw = quaternionYaw(robotPose.orientation);
+      const length = 24;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(-yaw);
+      ctx.fillStyle = "#ef5b5b";
+      ctx.beginPath();
+      ctx.moveTo(length, 0);
+      ctx.lineTo(-length * 0.55, -length * 0.38);
+      ctx.lineTo(-length * 0.25, 0);
+      ctx.lineTo(-length * 0.55, length * 0.38);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawDragArrow(start, end, color) {
+      const a = mapToCanvas(start.x, start.y);
+      const b = mapToCanvas(end.x, end.y);
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x - 12 * Math.cos(angle - 0.45), b.y - 12 * Math.sin(angle - 0.45));
+      ctx.lineTo(b.x - 12 * Math.cos(angle + 0.45), b.y - 12 * Math.sin(angle + 0.45));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+      const mapPoint = canvasToMap(event.clientX, event.clientY);
+      if (!mapPoint) return;
+      dragStart = mapPoint;
+      dragCurrent = mapPoint;
+      canvas.setPointerCapture(event.pointerId);
+      draw();
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      const mapPoint = canvasToMap(event.clientX, event.clientY);
+      if (!mapPoint) return;
+      pointerReadout.textContent = `x: ${mapPoint.x.toFixed(3)}\ny: ${mapPoint.y.toFixed(3)}\nyaw: ${dragStart && dragCurrent ? Math.atan2(dragCurrent.y - dragStart.y, dragCurrent.x - dragStart.x).toFixed(3) : "-"}`;
+      if (dragStart) {
+        dragCurrent = mapPoint;
+        draw();
+      }
+    });
+
+    canvas.addEventListener("pointerup", async (event) => {
+      if (!dragStart || !dragCurrent) return;
+      const yaw = Math.atan2(dragCurrent.y - dragStart.y, dragCurrent.x - dragStart.x);
+      const payload = { x: dragStart.x, y: dragStart.y, yaw };
+      dragStart = null;
+      dragCurrent = null;
+      draw();
+
+      try {
+        if (mode === "pose") {
+          await postJson("/api/pose_estimate", payload);
+          toast.textContent = "Initial pose sent";
+        } else {
+          const result = await postJson("/api/goal", payload);
+          toast.textContent = result.accepted === false ? "Goal rejected" : "Goal sent";
+        }
+      } catch (error) {
+        toast.textContent = String(error);
+      }
+      canvas.releasePointerCapture(event.pointerId);
+    });
+
+    resizeCanvas();
+    connectRosbridge();
+    refreshStatus();
+    setInterval(refreshStatus, 2000);
+  </script>
+</body>
+</html>
