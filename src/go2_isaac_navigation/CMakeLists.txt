@@ -35,11 +35,14 @@ install(DIRECTORY launch config rviz web
 
 install(PROGRAMS
   scripts/go2_web_server.py
+  scripts/odom_tf_bridge.py
+  scripts/cmd_vel_to_sport_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
 install(FILES
   WEB_UI.md
+  REAL_GO2.md
   DESTINATION share/${PROJECT_NAME}
 )
 
